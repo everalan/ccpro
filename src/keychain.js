@@ -29,6 +29,19 @@ export async function readItem(ctx, service) {
   }
 }
 
+// Returns false when there was nothing to delete.
+export async function deleteItem(ctx, service) {
+  try {
+    await execFileAsync(ctx.securityBin, [
+      'delete-generic-password', '-a', ctx.keychainAccount, '-s', service,
+    ], { env: ctx.env });
+    return true;
+  } catch (error) {
+    if (error.code === ITEM_NOT_FOUND) return false;
+    throw new CcproError(`删除钥匙串条目失败：${error.stderr?.trim() || error.message}`);
+  }
+}
+
 function runInteractive(ctx, line) {
   return new Promise((resolve, reject) => {
     const child = spawn(ctx.securityBin, ['-i'], { env: ctx.env, stdio: ['pipe', 'ignore', 'pipe'] });

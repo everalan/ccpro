@@ -22,9 +22,10 @@ npm link
 ## 使用
 
 ```sh
-ccpro save        # 保存当前登录的账号，邮箱取自账号信息
-ccpro             # 选择账号并切换
-ccpro --update    # 更新到最新版本
+ccpro save                # 保存当前登录的账号，邮箱取自账号信息
+ccpro                     # 选择账号并切换
+ccpro remove <邮箱>       # 删除已保存的账号
+ccpro --update            # 更新到最新版本
 ccpro --version
 ccpro --help
 ```
@@ -38,6 +39,8 @@ ccpro save
 ```
 
 切换对整台机器生效。切换后请重开 Claude Code 窗口，用 `claude --resume` 接回对话。
+
+`ccpro remove` 删除账号的目录和钥匙串记录，邮箱不区分大小写。当前账号不能删除，需要先切到其他账号。删除只影响本机，不会注销服务器上的登录。
 
 ## 账号列表
 
@@ -79,7 +82,7 @@ ccpro save
 - 依赖 Claude Code 的内部存储格式和 `/usage` 的英文输出，Claude Code 升级后可能需要调整。额度解析不出来时显示“额度未知”，不影响切换。
 - 重置时间只按 UTC+8（北京、新加坡）处理，其他时区下显示的时间会不对。
 - 在 ccpro 之外用 `claude auth login` 换账号前，先运行 `ccpro save`，否则原账号之后轮换过的 token 会丢失，需要重新登录。
-- `--update` 通过 `npm install -g` 更新，包发布到 npm 之后才能使用。
+- `--update` 通过 `npm install -g` 更新。
 
 ## 测试
 

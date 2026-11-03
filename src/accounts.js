@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { CcproError, credentialService } from './context.js';
-import { readItem, writeItem } from './keychain.js';
+import { deleteItem, readItem, writeItem } from './keychain.js';
 import { withClaudeLocks } from './locks.js';
 
 async function readJson(file) {
@@ -105,6 +105,23 @@ export function switchTo(ctx, email) {
       throw error;
     }
     return { changed: true };
+  });
+}
+
+// Under the locks so a switch cannot make the account current midway.
+export function removeAccount(ctx, email) {
+  return withClaudeLocks(ctx, async () => {
+    const wanted = email.toLowerCase();
+    const account = (await listAccounts(ctx)).find((item) => item.email.toLowerCase() === wanted);
+    if (account?.current) {
+      throw new CcproError(`${account.email} 是当前账号，不能删除；请先运行 ccpro 切换到其他账号`);
+    }
+    if (!account) throw new CcproError(`账号 ${email} 未保存`);
+
+    // Keychain first: if that fails the profile stays listed and can be retried.
+    await deleteItem(ctx, credentialService(account.dir));
+    await rm(account.dir, { recursive: true, force: true });
+    return account.email;
   });
 }
 

@@ -48,7 +48,7 @@ test('--version prints the package version', () => {
 test('--help describes the commands', () => {
   const result = spawnSync(process.execPath, [binPath, '--help'], { encoding: 'utf8' });
   assert.equal(result.status, 0);
-  for (const word of ['save', '--help', '--version', '--update']) assert.ok(result.stdout.includes(word), word);
+  for (const word of ['save', 'remove', '--help', '--version', '--update']) assert.ok(result.stdout.includes(word), word);
 });
 
 test('the executable exits non-zero for an unknown command', () => {
@@ -106,6 +106,30 @@ test('save takes no arguments', async (t) => {
 
   assert.match(stderr.text(), /save/);
   assert.equal(await box.readItem(box.profileService('a@x.com')), undefined);
+});
+
+test('remove deletes the account and says which one', async (t) => {
+  const box = await twoAccounts(t);
+  const { ctx, stdout } = interactive(box);
+
+  assert.equal(await main(['remove', 'b@x.com'], ctx), 0);
+
+  assert.match(stdout.text(), /b@x\.com/);
+  assert.equal(await box.readItem(box.profileService('b@x.com')), undefined);
+});
+
+test('remove needs exactly one email', async (t) => {
+  for (const args of [[], ['b@x.com', 'a@x.com']]) {
+    await t.test(`${args.length} arguments`, async (st) => {
+      const box = await twoAccounts(st);
+      const { ctx, stderr } = interactive(box);
+
+      assert.equal(await main(['remove', ...args], ctx), 1);
+
+      assert.match(stderr.text().split('\n')[0], /remove.*邮箱/);
+      assert.notEqual(await box.readItem(box.profileService('b@x.com')), undefined);
+    });
+  }
 });
 
 test('errors are printed instead of thrown', async (t) => {

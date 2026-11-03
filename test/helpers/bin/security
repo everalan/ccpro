@@ -52,9 +52,28 @@ function find(args) {
   return 0;
 }
 
+function remove(args) {
+  const service = option(args, '-s');
+  const key = `${option(args, '-a')}|${service}`;
+  const store = loadStore();
+  if (store[key] === undefined) {
+    process.stderr.write('security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n');
+    return 44;
+  }
+  if (failing().includes(service)) {
+    process.stderr.write('security: SecKeychainItemDelete: delete refused\n');
+    return 1;
+  }
+  delete store[key];
+  saveStore(store);
+  process.stdout.write('password has been deleted.\n');
+  return 0;
+}
+
 function run(args) {
   if (args[0] === 'add-generic-password') return add(args);
   if (args[0] === 'find-generic-password') return find(args);
+  if (args[0] === 'delete-generic-password') return remove(args);
   process.stderr.write(`unexpected security command: ${args[0]}\n`);
   return 64;
 }

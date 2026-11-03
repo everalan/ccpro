@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { listAccounts, saveCurrent, switchTo } from './accounts.js';
+import { listAccounts, removeAccount, saveCurrent, switchTo } from './accounts.js';
 import { CcproError, createContext } from './context.js';
 import { selectAccount } from './select.js';
 import { fetchUsage } from './usage.js';
@@ -8,11 +8,12 @@ import { fetchUsage } from './usage.js';
 const packageInfo = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const HELP = `用法：
-  ccpro              选择已保存的账号并切换，列表里显示各账号的剩余额度
-  ccpro save         保存当前登录的账号，邮箱取自账号信息
-  ccpro --update     更新到最新版本
-  ccpro --version    显示版本号
-  ccpro --help       显示帮助
+  ccpro                选择已保存的账号并切换，列表里显示各账号的剩余额度
+  ccpro save           保存当前登录的账号，邮箱取自账号信息
+  ccpro remove <邮箱>  删除已保存的账号（当前账号需先切走）
+  ccpro --update       更新到最新版本
+  ccpro --version      显示版本号
+  ccpro --help         显示帮助
 
 添加账号：运行 claude auth login 登录后，再运行 ccpro save。
 `;
@@ -31,6 +32,11 @@ function update(ctx) {
 async function save(ctx) {
   const email = await saveCurrent(ctx);
   ctx.stdout.write(`已保存 ${email}\n要添加下一个账号：运行 claude auth login，再运行 ccpro save\n`);
+  return 0;
+}
+
+async function remove(ctx, email) {
+  ctx.stdout.write(`已删除 ${await removeAccount(ctx, email)}\n`);
   return 0;
 }
 
@@ -72,6 +78,10 @@ export async function main(argv, ctx = createContext()) {
     if (command === 'save') {
       if (rest.length > 0) throw new CcproError('save 不需要参数，邮箱取自当前登录的账号');
       return await save(ctx);
+    }
+    if (command === 'remove') {
+      if (rest.length !== 1) throw new CcproError('remove 需要一个邮箱，例如 ccpro remove name@example.com');
+      return await remove(ctx, rest[0]);
     }
     if (command === undefined) return await chooseAndSwitch(ctx);
     throw new CcproError(`未知命令：${command}\n\n${HELP}`);
