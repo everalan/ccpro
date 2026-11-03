@@ -1,0 +1,14 @@
+#!/usr/bin/env node
+// Stand-in for npm: records its arguments and exits with the requested status.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+if (!process.env.HOME?.includes('ccpro-test-')) {
+  process.stderr.write('test double started outside a sandbox HOME\n');
+  process.exit(70);
+}
+
+const home = process.env.HOME;
+writeFileSync(join(home, 'fake-npm.json'), JSON.stringify(process.argv.slice(2)));
+const exitPath = join(home, 'fake-npm-exit');
+process.exit(existsSync(exitPath) ? Number(readFileSync(exitPath, 'utf8')) : 0);

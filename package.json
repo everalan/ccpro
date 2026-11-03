@@ -1,0 +1,32 @@
+{
+  "name": "@everalan/ccpro",
+  "version": "0.1.0",
+  "description": "Switch between saved Claude Code logins on macOS",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/everalan/ccpro.git"
+  },
+  "type": "module",
+  "bin": {
+    "ccpro": "bin/ccpro.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "proper-lockfile": "^4.1.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+// Stand-in for the claude binary, answering only `claude -p /usage --output-format json`.
+// It works out whose usage to report the way the real one does: from the config
+// directory it was started with, so running it against the wrong directory
+// returns the wrong account's numbers.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+
+if (!process.env.HOME?.includes('ccpro-test-')) {
+  process.stderr.write('test double started outside a sandbox HOME\n');
+  process.exit(70);
+}
+
+const home = process.env.HOME;
+const configDir = process.env.CLAUDE_CONFIG_DIR;
+const configFile = configDir ? join(configDir, '.claude.json') : join(home, '.claude.json');
+const behaviourPath = join(home, 'fake-claude.json');
+const behaviour = existsSync(behaviourPath) ? JSON.parse(readFileSync(behaviourPath, 'utf8')) : {};
+
+const COST_ONLY = 'Total cost:            $0.0000\nTotal duration (API):  0s\nTotal duration (wall): 0s';
+
+function usageText(email) {
+  const usage = behaviour.usage?.[email];
+  if (!usage) return COST_ONLY;
+  return [
+    'You are currently using your subscription to power your Claude Code usage',
+    '',
+    `Current session: ${usage.session}% used · resets Oct 30 at 6:50pm (Asia/Singapore)`,
+    `Current week (all models): ${usage.week}% used · resets Nov 5 at 4pm (Asia/Singapore)`,
+    `Current week (Fable): 0% used · resets Nov 5 at 4pm (Asia/Singapore)`,
+  ].join('\n');
+}
+
+// Models the token refresh Claude Code performs for itself while /usage runs.
+function rotateToken(newToken) {
+  const suffix = configDir
+    ? `-${createHash('sha256').update(configDir.normalize('NFC')).digest('hex').slice(0, 8)}`
+    : '';
+  const storePath = join(home, 'fake-keychain.json');
+  const store = JSON.parse(readFileSync(storePath, 'utf8'));
+  const key = `${process.env.USER}|Claude Code-credentials${suffix}`;
+  const item = JSON.parse(store[key]);
+  store[key] = JSON.stringify({ ...item, claudeAiOauth: { ...item.claudeAiOauth, refreshToken: newToken } });
+  writeFileSync(storePath, JSON.stringify(store));
+}
+
+const email = existsSync(configFile)
+  ? JSON.parse(readFileSync(configFile, 'utf8')).oauthAccount?.emailAddress
+  : undefined;
+
+if (behaviour.exitCode) process.exit(behaviour.exitCode);
+
+const delay = behaviour.delayMs ?? 0;
+setTimeout(() => {
+  if (behaviour.rotate?.[email]) rotateToken(behaviour.rotate[email]);
+  // A token in the environment wins over the stored login in the real binary and
+  // carries no profile scope, so /usage degrades to the cost-only report.
+  const text = process.env.CLAUDE_CODE_OAUTH_TOKEN ? COST_ONLY : usageText(email);
+  process.stdout.write(JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false, num_turns: 0, total_cost_usd: 0, result: text,
+  }));
+}, delay);

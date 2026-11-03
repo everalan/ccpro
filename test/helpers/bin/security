@@ -1,0 +1,80 @@
+#!/usr/bin/env node
+// Stand-in for /usr/bin/security. Behaviour mirrors what the real binary was
+// observed to do: exit 44 when an item is missing, hex output for non-ASCII
+// data, and a non-zero exit from `-i` when the command inside it fails.
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+if (!process.env.HOME?.includes('ccpro-test-')) {
+  process.stderr.write('test double started outside a sandbox HOME\n');
+  process.exit(70);
+}
+
+const home = process.env.HOME;
+const storePath = join(home, 'fake-keychain.json');
+const failPath = join(home, 'fake-keychain-fail.json');
+
+const loadStore = () => (existsSync(storePath) ? JSON.parse(readFileSync(storePath, 'utf8')) : {});
+const saveStore = (store) => writeFileSync(storePath, JSON.stringify(store));
+const failing = () => (existsSync(failPath) ? JSON.parse(readFileSync(failPath, 'utf8')) : []);
+
+function option(args, flag) {
+  const index = args.indexOf(flag);
+  return index === -1 ? undefined : args[index + 1];
+}
+
+function add(args) {
+  const account = option(args, '-a');
+  const service = option(args, '-s');
+  const hex = option(args, '-X');
+  if (!/^([0-9a-f]{2})+$/.test(hex ?? '')) {
+    process.stderr.write('security: Unable to convert password data (-X must specify valid hex digits)\n');
+    return 2;
+  }
+  if (failing().includes(service)) {
+    process.stderr.write('security: SecKeychainItemCreateFromContent: write refused\n');
+    return 1;
+  }
+  const store = loadStore();
+  store[`${account}|${service}`] = Buffer.from(hex, 'hex').toString('utf8');
+  saveStore(store);
+  return 0;
+}
+
+function find(args) {
+  const value = loadStore()[`${option(args, '-a')}|${option(args, '-s')}`];
+  if (value === undefined) {
+    process.stderr.write('security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n');
+    return 44;
+  }
+  const printable = /^[\x20-\x7e]*$/.test(value);
+  process.stdout.write(`${printable ? value : Buffer.from(value, 'utf8').toString('hex')}\n`);
+  return 0;
+}
+
+function run(args) {
+  if (args[0] === 'add-generic-password') return add(args);
+  if (args[0] === 'find-generic-password') return find(args);
+  process.stderr.write(`unexpected security command: ${args[0]}\n`);
+  return 64;
+}
+
+// Records every argv so tests can tell whether a secret reached the process list.
+const argv = process.argv.slice(2);
+appendFileSync(join(home, 'fake-security.log'), `${JSON.stringify(argv)}\n`);
+
+// The real -i reads a fixed-size line: anything longer is executed cut short, so
+// the item is stored truncated, and the remainder then fails as an unknown command.
+const INTERACTIVE_LINE_LIMIT = 4095;
+const tokenize = (line) => [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((match) => match[1] ?? match[2]);
+
+if (argv[0] === '-i') {
+  const line = readFileSync(0, 'utf8').trim();
+  if (line.length > INTERACTIVE_LINE_LIMIT) {
+    const evenLength = INTERACTIVE_LINE_LIMIT - (INTERACTIVE_LINE_LIMIT % 2);
+    run(tokenize(`${line.slice(0, evenLength)}"`));
+    process.exit(1);
+  }
+  process.exit(run(tokenize(line)));
+}
+process.exit(run(argv));
