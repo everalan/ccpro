@@ -7,6 +7,14 @@
 需要 Node.js 20 或更高版本，且 `claude` 在 `PATH` 中。
 
 ```sh
+npm install -g @everalan/ccpro
+```
+
+从源码安装：
+
+```sh
+git clone https://github.com/everalan/ccpro.git
+cd ccpro
 npm install
 npm link
 ```
